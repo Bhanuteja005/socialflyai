@@ -1,36 +1,180 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SocialFly AI - Comprehensive Social Media Integration Platform
 
-## Getting Started
+A Next.js-based platform for managing and testing social media integrations across multiple platforms: Discord, Facebook, LinkedIn, X (Twitter), and YouTube.
 
-First, run the development server:
+## 🚀 Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+### Supported Platforms
+- **Discord** - Send messages and media to Discord channels
+- **Facebook** - Post updates, upload media, and manage page content
+- **LinkedIn** - Create text and image posts, manage professional profile
+- **X (Twitter)** - Post tweets with OAuth 2.0 authentication
+- **YouTube** - Upload videos with full OAuth flow
+
+### Key Capabilities
+- ✅ RESTful API endpoints for all platforms
+- ✅ Interactive web UI for testing
+- ✅ Comprehensive test suite (PowerShell + Node.js)
+- ✅ File upload support
+- ✅ OAuth 2.0 authentication flows
+- ✅ Error handling and validation
+- ✅ Environment-based configuration
+
+## 📋 Prerequisites
+
+- Node.js 18+ and npm
+- API credentials for each platform you want to use
+
+## 🛠️ Installation
+
+1. **Navigate to the project directory**
+   ```bash
+   cd c:\Users\pashi\Downloads\socialflyai
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Configure environment variables**
+   - Update `.env.local` with your API credentials
+   - See the [Environment Variables](#environment-variables) section below
+
+4. **Start the development server**
+   ```bash
+   npm run dev
+   ```
+
+5. **Open your browser**
+   - Navigate to http://localhost:3000
+   - Use the interactive UI to test integrations
+
+## 🔐 Environment Variables
+
+Update `.env.local` in the project root with your credentials. The file template is already created.
+
+### Getting API Credentials
+
+#### Discord
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
+2. Create a new application
+3. Go to "Bot" section and create a bot
+4. Copy the bot token
+
+#### Facebook
+1. Go to [Facebook Developers](https://developers.facebook.com/)
+2. Create an app
+3. Generate a Page Access Token with required permissions
+
+#### LinkedIn
+1. Go to [LinkedIn Developers](https://www.linkedin.com/developers/)
+2. Create an app and generate access token
+
+#### X (Twitter)
+1. Go to [X Developer Portal](https://developer.twitter.com/)
+2. Create a project and enable OAuth 2.0
+
+#### YouTube
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Enable YouTube Data API v3
+3. Create OAuth 2.0 credentials
+
+## 📁 Project Structure
+
+```
+socialflyai/
+├── app/
+│   ├── api/                     # API routes
+│   │   ├── discord/            # Discord endpoints
+│   │   ├── facebook/           # Facebook endpoints
+│   │   ├── linkedin/           # LinkedIn endpoints
+│   │   ├── x/                  # X (Twitter) endpoints
+│   │   └── youtube/            # YouTube endpoints
+│   ├── page.tsx                # Main UI for testing
+│   └── ...
+├── tests/                      # Test scripts
+│   ├── test-all-apis.js       # Node.js test suite
+│   ├── *.ps1                  # PowerShell tests
+│   └── README.md              # Test documentation
+├── NovaLink-main/             # Original implementations
+├── .env.local                 # Environment variables
+└── package.json
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🧪 Testing
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Interactive Web UI (Recommended)
+1. Start the server: `npm run dev`
+2. Open http://localhost:3000
+3. Select a platform tab
+4. Fill in required fields
+5. Click action buttons and view responses
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Automated Tests
 
-## Learn More
+#### PowerShell (Windows)
+```powershell
+cd tests
+.\run-all-tests.ps1
+```
 
-To learn more about Next.js, take a look at the following resources:
+#### Node.js
+```bash
+node tests/test-all-apis.js
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 📚 API Endpoints
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Discord
+- `POST /api/discord/send-message` - Send text message
+- `POST /api/discord/send-message-with-media` - Send message with files
 
-## Deploy on Vercel
+### Facebook
+- `POST /api/facebook/post` - Create post
+- `POST /api/facebook/upload-media` - Upload media
+- `GET /api/facebook/posts` - Get recent posts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### LinkedIn
+- `GET /api/linkedin/profile` - Get user profile
+- `POST /api/linkedin/text-post` - Create text post
+- `POST /api/linkedin/image-post` - Create image post
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### X (Twitter)
+- `GET /api/x/auth-url` - Generate OAuth URL
+- `POST /api/x/callback` - Exchange code for token
+- `POST /api/x/post` - Post tweet
+
+### YouTube
+- `GET /api/youtube/auth-url` - Generate OAuth URL
+- `POST /api/youtube/callback` - Exchange code for token
+- `POST /api/youtube/upload` - Upload video
+
+## 🐛 Troubleshooting
+
+**Authentication Errors**
+- Verify all environment variables in `.env.local`
+- Check if tokens are expired
+
+**Discord Channel Not Found**
+- Verify channel ID is correct
+- Ensure bot has access to the channel
+
+**OAuth Failed (X, YouTube)**
+- Verify redirect URI matches exactly
+- Check client ID and secret
+
+## 📝 Notes
+
+- OAuth flows require browser interaction
+- Keep `.env.local` secure and never commit it
+- Some platforms have rate limits
+
+## 🤝 Acknowledgments
+
+Built using the logic from NovaLink backend implementations.
+
+---
+
+**Made with ❤️ for social media integration testing**
+
