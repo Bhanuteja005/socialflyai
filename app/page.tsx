@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState('discord');
@@ -37,6 +37,34 @@ export default function Home() {
   const [ytVideo, setYtVideo] = useState<File | null>(null);
   const [ytTitle, setYtTitle] = useState('');
   const [ytDescription, setYtDescription] = useState('');
+
+  // Handle OAuth callbacks on component mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    
+    // YouTube OAuth callback
+    if (params.get('youtube_success') === 'true') {
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
+      
+      if (accessToken) {
+        setYtAccessToken(accessToken);
+        setActiveTab('youtube');
+        setResponse({
+          success: true,
+          message: 'YouTube authentication successful!',
+          tokens: { access_token: accessToken, refresh_token: refreshToken }
+        });
+        
+        // Clean URL
+        window.history.replaceState({}, '', '/');
+      }
+    } else if (params.get('youtube_error')) {
+      setActiveTab('youtube');
+      setError(params.get('youtube_error') || 'YouTube authentication failed');
+      window.history.replaceState({}, '', '/');
+    }
+  }, []);
 
   const clearMessages = () => {
     setResponse(null);
@@ -378,6 +406,32 @@ export default function Home() {
         setResponse(data);
       } else {
         setError(data.error || 'Failed to upload video');
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verifyYouTubeToken = async () => {
+    if (!ytAccessToken) {
+      setError('No access token available. Please authenticate first.');
+      return;
+    }
+    clearMessages();
+    setLoading(true);
+    try {
+      const res = await fetch('/api/youtube/verify-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessToken: ytAccessToken }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setResponse(data);
+      } else {
+        setError(data.error || 'Token verification failed');
       }
     } catch (err: any) {
       setError(err.message);
@@ -801,13 +855,23 @@ export default function Home() {
                 />
               </div>
 
-              <button
-                onClick={uploadToYouTube}
-                disabled={loading || !ytAccessToken}
-                className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
-              >
-                Upload Video
-              </button>
+              <div className="flex gap-4">
+                <button
+                  onClick={verifyYouTubeToken}
+                  disabled={loading || !ytAccessToken}
+                  className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                >
+                  Verify Token
+                </button>
+                
+                <button
+                  onClick={uploadToYouTube}
+                  disabled={loading || !ytAccessToken}
+                  className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                >
+                  Upload Video
+                </button>
+              </div>
             </div>
           )}
         </div>

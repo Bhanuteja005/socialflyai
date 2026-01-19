@@ -1,74 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { google } from 'googleapis';
-import { Readable } from 'stream';
+import { youTubeService } from '@/lib/services/youtube.service';
+import { handleApiError, successResponse, errorResponse } from '@/lib/api-utils';
 
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('video') as File;
-    const title = formData.get('title') as string || 'Test Video';
-    const description = formData.get('description') as string || 'Uploaded via SocialFly AI';
+    const title = (formData.get('title') as string) || 'Test Video';
+    const description = (formData.get('description') as string) || 'Uploaded via SocialFly AI';
     const accessToken = formData.get('accessToken') as string;
+    const privacyStatus = (formData.get('privacyStatus') as 'public' | 'private' | 'unlisted') || 'public';
+
+    console.log('[Upload Route] Received upload request');
+    console.log('[Upload Route] File name:', file?.name);
+    console.log('[Upload Route] Access token received:', accessToken ? 'Yes' : 'No');
+    console.log('[Upload Route] Access token length:', accessToken?.length);
 
     if (!file) {
-      return NextResponse.json(
-        { error: 'No video file provided' },
-        { status: 400 }
-      );
+      return errorResponse('No video file provided', 400);
     }
 
     if (!accessToken) {
-      return NextResponse.json(
-        { error: 'No access token provided' },
-        { status: 401 }
-      );
+      return errorResponse('No access token provided', 401);
     }
 
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.YOUTUBE_CLIENT_ID,
-      process.env.YOUTUBE_CLIENT_SECRET,
-      process.env.YOUTUBE_REDIRECT_URI
-    );
-
-    oauth2Client.setCredentials({ access_token: accessToken });
-
-    const youtube = google.youtube({
-      version: 'v3',
-      auth: oauth2Client,
+    const result = await youTubeService.uploadVideo({
+      file,
+      title,
+      description,
+      accessToken,
+      privacyStatus,
     });
 
-    // Convert File to Stream
-    const buffer = await file.arrayBuffer();
-    const stream = Readable.from(Buffer.from(buffer));
-
-    const response = await youtube.videos.insert({
-      part: ['snippet', 'status'],
-      requestBody: {
-        snippet: {
-          title,
-          description,
-        },
-        status: {
-          privacyStatus: 'public',
-        },
-      },
-      media: {
-        body: stream,
-      },
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: 'Video uploaded to YouTube successfully',
-      data: response.data,
-    });
+    return successResponse(result, 'Video uploaded to YouTube successfully');
   } catch (error: any) {
-    return NextResponse.json(
-      {
-        error: 'Failed to upload video',
-        details: error.message,
-      },
-      { status: error.response?.status || 500 }
-    );
+    return handleApiError(error);
   }
 }

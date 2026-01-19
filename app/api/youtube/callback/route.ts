@@ -1,37 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { google } from 'googleapis';
+import { youTubeService } from '@/lib/services/youtube.service';
 
-export async function POST(request: NextRequest) {
+// Google OAuth callback - receives code via GET request query params
+export async function GET(request: NextRequest) {
   try {
-    const { code } = await request.json();
+    const searchParams = request.nextUrl.searchParams;
+    const code = searchParams.get('code');
+    const error = searchParams.get('error');
 
-    if (!code) {
-      return NextResponse.json(
-        { error: 'Missing authorization code' },
-        { status: 400 }
+    // Handle user denial or errors from Google
+    if (error) {
+      return NextResponse.redirect(
+        new URL(`/?youtube_error=${encodeURIComponent(error)}`, request.url)
       );
     }
 
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.YOUTUBE_CLIENT_ID,
-      process.env.YOUTUBE_CLIENT_SECRET,
-      process.env.YOUTUBE_REDIRECT_URI
-    );
+    if (!code) {
+      return NextResponse.redirect(
+        new URL('/?youtube_error=no_code', request.url)
+      );
+    }
 
-    const { tokens } = await oauth2Client.getToken(code);
-    oauth2Client.setCredentials(tokens);
+    // Exchange code for tokens
+    const tokens = await youTubeService.exchangeCodeForToken(code);
 
-    return NextResponse.json({
-      success: true,
-      tokens,
-    });
+    // Redirect to frontend with tokens in URL (for MVP - in production, use secure session/cookies)
+    const redirectUrl = new URL('/', request.url);
+    redirectUrl.searchParams.set('youtube_success', 'true');
+    redirectUrl.searchParams.set('access_token', tokens.access_token || '');
+    if (tokens.refresh_token) {
+      redirectUrl.searchParams.set('refresh_token', tokens.refresh_token);
+    }
+
+    return NextResponse.redirect(redirectUrl);
   } catch (error: any) {
-    return NextResponse.json(
-      {
-        error: 'Failed to exchange code for token',
-        details: error.message,
-      },
-      { status: error.response?.status || 500 }
-    );
+    console.error('YouTube OAuth callback error:', error);
+    
+    // Redirect to frontend with error
+    const redirectUrl = new URL('/', request.url);
+    redirectUrl.searchParams.set('youtube_error', 'auth_failed');
+    redirectUrl.searchParams.set('error_details', error.message || 'Unknown error');
+    
+    return NextResponse.redirect(redirectUrl);
   }
 }
