@@ -5,8 +5,8 @@ export async function GET() {
     const clientId = process.env.LINKEDIN_CLIENT_ID;
     const redirectUri = process.env.LINKEDIN_REDIRECT_URI || 'http://localhost:3000/api/linkedin/callback';
 
-    // Use basic profile scopes that are approved
-    const scope = 'r_liteprofile r_emailaddress w_member_social openid profile email';
+    // Use current LinkedIn OAuth scopes
+    const scope = 'openid profile email w_member_social';
 
     if (!clientId) {
       return NextResponse.json(
