@@ -42,6 +42,68 @@ export default function Home() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     
+    // X (Twitter) OAuth callback
+    if (params.get('x_success') === 'true') {
+      const code = params.get('code');
+      const state = params.get('state');
+      const storedVerifier = localStorage.getItem('x_code_verifier');
+      
+      if (code && storedVerifier) {
+        // Automatically exchange code for token
+        setActiveTab('x');
+        setXCode(code);
+        setXCodeVerifier(storedVerifier);
+        
+        // Exchange the code
+        fetch('/api/x/callback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: code,
+            code_verifier: storedVerifier,
+          }),
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.data && data.data.tokens) {
+            setXAccessToken(data.data.tokens.access_token);
+            setResponse({
+              success: true,
+              message: 'X (Twitter) authentication successful!',
+              tokens: data.data.tokens
+            });
+            // Clean up - code can only be used once
+            setXCode('');
+            setXCodeVerifier('');
+            localStorage.removeItem('x_code_verifier');
+            localStorage.removeItem('x_state');
+          } else {
+            setError(data.error || data.details || 'Failed to exchange token');
+          }
+          window.history.replaceState({}, '', '/');
+        })
+        .catch(err => {
+          setError(err.message || 'Failed to exchange token');
+          window.history.replaceState({}, '', '/');
+        });
+      } else if (code && !storedVerifier) {
+        // Code received but no verifier stored - allow manual exchange
+        setActiveTab('x');
+        setXCode(code);
+        setResponse({
+          success: false,
+          message: 'Authorization code received. Please enter the code manually and click "Exchange Token"',
+          code: code
+        });
+        window.history.replaceState({}, '', '/');
+      }
+    } else if (params.get('x_error')) {
+      setActiveTab('x');
+      const errorMsg = params.get('error_description') || params.get('x_error') || 'X authentication failed';
+      setError(decodeURIComponent(errorMsg));
+      window.history.replaceState({}, '', '/');
+    }
+    
     // YouTube OAuth callback
     if (params.get('youtube_success') === 'true') {
       const accessToken = params.get('access_token');
@@ -276,8 +338,11 @@ export default function Home() {
       const res = await fetch('/api/x/auth-url');
       const data = await res.json();
       if (res.ok) {
-        setXAuthUrl(data.url);
-        setXCodeVerifier(data.code_verifier);
+        setXAuthUrl(data.data.url);
+        setXCodeVerifier(data.data.code_verifier);
+        // Store code_verifier in localStorage for callback (persists across tabs)
+        localStorage.setItem('x_code_verifier', data.data.code_verifier);
+        localStorage.setItem('x_state', data.data.state);
         setResponse(data);
       } else {
         setError(data.error || 'Failed to generate auth URL');
@@ -290,6 +355,20 @@ export default function Home() {
   };
 
   const exchangeXToken = async () => {
+    // Get code_verifier from state or localStorage
+    let verifier = xCodeVerifier;
+    if (!verifier) {
+      verifier = localStorage.getItem('x_code_verifier') || '';
+      if (verifier) {
+        setXCodeVerifier(verifier);
+      }
+    }
+
+    if (!xCode || !verifier) {
+      setError('Missing authorization code or code verifier. Please click "Generate Auth URL" first.');
+      return;
+    }
+
     clearMessages();
     setLoading(true);
     try {
@@ -298,15 +377,24 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           code: xCode,
-          code_verifier: xCodeVerifier,
+          code_verifier: verifier,
         }),
       });
       const data = await res.json();
-      if (res.ok) {
-        setXAccessToken(data.tokens.access_token);
-        setResponse(data);
+      if (res.ok && data.success && data.data && data.data.tokens) {
+        setXAccessToken(data.data.tokens.access_token);
+        setResponse({
+          success: true,
+          message: 'X (Twitter) authentication successful!',
+          tokens: data.data.tokens
+        });
+        // Clean up - code can only be used once
+        setXCode('');
+        setXCodeVerifier('');
+        localStorage.removeItem('x_code_verifier');
+        localStorage.removeItem('x_state');
       } else {
-        setError(data.error || 'Failed to exchange token');
+        setError(data.error || data.details || 'Failed to exchange token');
       }
     } catch (err: any) {
       setError(err.message);
@@ -698,6 +786,17 @@ export default function Home() {
                   >
                     {xAuthUrl}
                   </a>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    Click the link above to authorize. You'll be redirected back automatically.
+                  </p>
+                </div>
+              )}
+
+              {xCodeVerifier && (
+                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                  <p className="text-xs text-blue-700 dark:text-blue-300">
+                    ✓ Code verifier stored (will be used automatically on callback)
+                  </p>
                 </div>
               )}
 
@@ -710,22 +809,22 @@ export default function Home() {
                   value={xCode}
                   onChange={(e) => setXCode(e.target.value)}
                   className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  placeholder="Paste authorization code here"
+                  placeholder="Paste authorization code here (auto-filled on callback)"
                 />
               </div>
 
               <button
                 onClick={exchangeXToken}
-                disabled={loading}
+                disabled={loading || !xCode || !xCodeVerifier || !!xAccessToken}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
               >
-                Exchange Token
+                {xAccessToken ? 'Already Authenticated' : 'Exchange Token (Validate)'}
               </button>
 
               {xAccessToken && (
                 <div className="p-4 bg-green-100 dark:bg-green-900 rounded-lg">
                   <p className="text-sm text-green-800 dark:text-green-200">
-                    Access Token Obtained!
+                    ✓ Access Token Obtained! You can now post tweets.
                   </p>
                 </div>
               )}
