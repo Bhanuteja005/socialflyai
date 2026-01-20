@@ -1,6 +1,15 @@
-# SocialFly AI - Comprehensive Social Media Integration Platform
+# SocialFly AI - Unified Social Media Management Platform
 
-A Next.js-based platform for managing and testing social media integrations across multiple platforms: Discord, Facebook, LinkedIn, X (Twitter), and YouTube.
+A Next.js-based unified application for managing and posting to multiple social media platforms from a single interface. All platforms are managed through a unified backend running on **PORT 3000**.
+
+## 🏗️ Architecture
+
+**SocialFlyAI** is a single Next.js application (NOT microservices) that:
+- Runs entirely on **PORT 3000** (frontend + API routes)
+- Users toggle between platforms via tab interface
+- All API endpoints are under `/api/*` routes
+- Services in `/lib/services/` handle platform-specific logic
+- Single `.env` file for all configuration
 
 ## 🚀 Features
 
@@ -12,10 +21,11 @@ A Next.js-based platform for managing and testing social media integrations acro
 - **YouTube** - Upload videos with full OAuth flow
 
 ### Key Capabilities
+- ✅ Unified web interface on PORT 3000
 - ✅ RESTful API endpoints for all platforms
-- ✅ Interactive web UI for testing
+- ✅ Interactive tabbed UI for testing each platform
 - ✅ Comprehensive test suite (PowerShell + Node.js)
-- ✅ File upload support
+- ✅ File upload support for media
 - ✅ OAuth 2.0 authentication flows
 - ✅ Error handling and validation
 - ✅ Environment-based configuration
@@ -29,7 +39,7 @@ A Next.js-based platform for managing and testing social media integrations acro
 
 1. **Navigate to the project directory**
    ```bash
-   cd c:\Users\pashi\Downloads\socialflyai
+   cd socialflyai
    ```
 
 2. **Install dependencies**
@@ -38,16 +48,19 @@ A Next.js-based platform for managing and testing social media integrations acro
    ```
 
 3. **Configure environment variables**
-   - Update `.env.local` with your API credentials
+   - Copy `.env.example` to `.env`
+   - Update `.env` with your API credentials
    - See the [Environment Variables](#environment-variables) section below
 
 4. **Start the development server**
    ```bash
    npm run dev
    ```
+   The application will start on **http://localhost:3000**
 
 5. **Open your browser**
    - Navigate to http://localhost:3000
+   - Use the tabs to switch between different social media platforms
    - Use the interactive UI to test integrations
 
 ## 🔐 Environment Variables
