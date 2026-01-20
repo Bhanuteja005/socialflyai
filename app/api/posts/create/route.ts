@@ -271,23 +271,14 @@ async function publishToDiscord(content: string, account: any, mediaUrls: string
     console.log('Publishing to Discord with content:', JSON.stringify(content), 'media URLs:', mediaUrls);
 
     if (mediaUrls && mediaUrls.length > 0) {
-      // Send message with attachments using proper Discord API format
-      const FormData = require('form-data');
+      // Send message with media using the existing Discord API route
       const formData = new FormData();
-
-      // Add message payload - Discord allows messages with just attachments
-      const payload: any = {};
+      formData.append('channelId', channelId);
       if (content && content.trim()) {
-        payload.content = content;
-      } else {
-        // Discord requires some content, even for media-only messages
-        payload.content = '.'; // Minimal visible content
+        formData.append('content', content);
       }
-      formData.append('payload_json', JSON.stringify(payload));
 
-      console.log('Preparing FormData for Discord with payload_json:', payload);
-
-      // Add files from mediaUrls
+      // Convert file URLs to File objects
       const fs = require('fs');
       const path = require('path');
 
@@ -306,10 +297,9 @@ async function publishToDiscord(content: string, account: any, mediaUrls: string
           else if (ext === '.gif') contentType = 'image/gif';
           else if (ext === '.webp') contentType = 'image/webp';
           
-          formData.append(`files[${i}]`, fileBuffer, {
-            filename: fileName,
-            contentType: contentType,
-          });
+          // Create a File object from the buffer
+          const file = new File([fileBuffer], fileName, { type: contentType });
+          formData.append('files', file);
           
           console.log(`Added file ${fileName} with content type ${contentType}`);
         } else {
@@ -317,52 +307,44 @@ async function publishToDiscord(content: string, account: any, mediaUrls: string
         }
       }
 
-      console.log('Sending to Discord API...');
-      const response = await fetch(
-        `https://discord.com/api/v10/channels/${channelId}/messages`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}`,
-            ...formData.getHeaders(),
-          },
-          body: formData,
-        }
-      );
+      console.log('Calling Discord send-message-with-media route...');
+      const response = await fetch(`http://localhost:3000/api/discord/send-message-with-media`, {
+        method: 'POST',
+        body: formData,
+      });
 
       if (!response.ok) {
         const error = await response.json();
-        console.error('Discord API error:', error);
+        console.error('Discord media API error:', error);
         throw new Error(error.message || 'Discord media posting failed');
       }
 
       const data = await response.json();
       console.log('Discord media post success:', data);
-      return data.id;
+      return data.data.id;
     } else {
-      // Send text-only message
-      console.log('Sending text-only message to Discord');
-      const response = await fetch(
-        `https://discord.com/api/v10/channels/${channelId}/messages`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            content,
-          }),
-        }
-      );
+      // Send text-only message using the existing Discord API route
+      console.log('Calling Discord send-message route...');
+      const response = await fetch(`http://localhost:3000/api/discord/send-message`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          channelId,
+          content: content || ' ', // Ensure content is not empty
+        }),
+      });
 
       if (!response.ok) {
         const error = await response.json();
+        console.error('Discord text API error:', error);
         throw new Error(error.message || 'Discord text posting failed');
       }
 
       const data = await response.json();
-      return data.id;
+      console.log('Discord text post success:', data);
+      return data.data.id;
     }
   } catch (error: any) {
     console.error('Discord publishing error:', error);

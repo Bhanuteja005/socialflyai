@@ -104,7 +104,12 @@ export class DiscordService {
 
     // Add message payload
     const payload: any = {};
-    if (content) payload.content = content;
+    if (content && content.trim()) {
+      payload.content = content;
+    } else {
+      // Discord requires some content, even for media-only messages
+      payload.content = '\u200B'; // Zero-width space
+    }
     formData.append('payload_json', JSON.stringify(payload));
 
     // Add files
