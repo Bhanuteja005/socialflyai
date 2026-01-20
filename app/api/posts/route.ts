@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
             platform: true,
             accountName: true,
             avatarUrl: true,
+            metadata: true,
           },
         },
       },

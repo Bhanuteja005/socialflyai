@@ -20,6 +20,7 @@ interface SocialAccount {
   avatarUrl?: string;
   isActive: boolean;
   createdAt: string;
+  metadata?: any;
 }
 
 interface Post {
@@ -28,9 +29,11 @@ interface Post {
   status: string;
   scheduledFor?: string;
   publishedAt?: string;
+  mediaUrls?: string[];
   socialAccount: {
     platform: string;
     accountName?: string;
+    metadata?: any;
   };
 }
 
@@ -66,11 +69,70 @@ export default function Dashboard() {
   const [showPostComposer, setShowPostComposer] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'queue' | 'drafts' | 'approvals' | 'sent'>('queue');
+  const [discordBotStatus, setDiscordBotStatus] = useState<{needsSetup: boolean, message: string} | null>(null);
 
   useEffect(() => {
     loadAccounts();
     loadPosts();
   }, []);
+
+  const checkDiscordBotStatus = async () => {
+    try {
+      // First check if token is valid
+      const tokenResponse = await fetch('/api/discord/verify-token');
+      const tokenData = await tokenResponse.json();
+      
+      if (!tokenData.success) {
+        setDiscordBotStatus({
+          needsSetup: true,
+          message: 'Discord bot token is invalid'
+        });
+        return;
+      }
+
+      // Then check if bot can access the configured channel
+      const discordAccount = accounts.find(acc => acc.platform === 'discord');
+      if (discordAccount && discordAccount.metadata) {
+        const channelId = discordAccount.metadata.channelId || discordAccount.metadata.defaultChannelId;
+        if (channelId) {
+          try {
+            const channelResponse = await fetch(`/api/discord/test-token?channelId=${channelId}`);
+            const channelData = await channelResponse.json();
+            if (!channelData.success) {
+              setDiscordBotStatus({
+                needsSetup: true,
+                message: 'Bot needs to be added to your Discord server'
+              });
+              return;
+            }
+          } catch (error) {
+            setDiscordBotStatus({
+              needsSetup: true,
+              message: 'Cannot access Discord channel'
+            });
+            return;
+          }
+        }
+      }
+
+      setDiscordBotStatus(null);
+    } catch (error) {
+      setDiscordBotStatus({
+        needsSetup: true,
+        message: 'Cannot verify Discord bot status'
+      });
+    }
+  };
+
+  useEffect(() => {
+    // Check Discord bot status when accounts change
+    const discordAccount = accounts.find(acc => acc.platform === 'discord');
+    if (discordAccount) {
+      checkDiscordBotStatus();
+    } else {
+      setDiscordBotStatus(null);
+    }
+  }, [accounts]);
 
   const loadAccounts = async () => {
     try {
@@ -82,12 +144,27 @@ export default function Dashboard() {
       const data = await response.json();
       if (data.success) {
         setAccounts(data.accounts);
+        
+        // Check Discord bot status
+        const discordAccount = data.accounts.find((acc: SocialAccount) => acc.platform === 'discord');
+        if (discordAccount) {
+          await checkDiscordBotStatus();
+        }
       }
     } catch (error) {
       console.error('Error loading accounts:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const generateDiscordInviteLink = () => {
+    const clientId = process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID || '1463080016488435786';
+    // Permissions: Send Messages (2048) + Read Message History (65536) + Use Slash Commands (0) + Embed Links (16384)
+    const permissions = 2048 + 65536 + 16384; // Total: 83968
+    const scope = 'bot%20applications.commands';
+    
+    return `https://discord.com/api/oauth2/authorize?client_id=${clientId}&permissions=${permissions}&scope=${scope}`;
   };
 
   const loadPosts = async (status?: string) => {
@@ -177,20 +254,48 @@ export default function Dashboard() {
                 const config = getPlatformConfig(platform);
                 const Icon = config.icon;
                 const isConnected = connectedPlatformIds.has(platform);
+                const discordNeedsSetup = platform === 'discord' && discordBotStatus?.needsSetup;
                 
                 return (
                   <div 
                     key={platform}
                     onClick={() => handleConnectPlatform(platform)}
-                    className="flex items-center space-x-3 px-3 py-2 text-gray-600 hover:bg-gray-50 rounded-md cursor-pointer group"
+                    className={`flex items-center space-x-3 px-3 py-2 rounded-md cursor-pointer group ${
+                      discordNeedsSetup ? 'bg-yellow-50 text-yellow-700 border border-yellow-200' : 
+                      'text-gray-600 hover:bg-gray-50'
+                    }`}
                   >
-                     <div className={`w-5 h-5 flex items-center justify-center text-lg ${config.color} opacity-70 group-hover:opacity-100`}>
+                     <div className={`w-5 h-5 flex items-center justify-center text-lg ${
+                       discordNeedsSetup ? 'text-yellow-600' : `${config.color} opacity-70 group-hover:opacity-100`
+                     }`}>
                         <Icon />
                      </div>
-                     <span className={isConnected ? "font-semibold text-gray-800" : ""}>
-                       {isConnected ? config.name : `Connect ${config.name}`}
-                     </span>
-                     {isConnected && <div className="ml-auto w-2 h-2 bg-green-500 rounded-full"></div>}
+                     <div className="flex-1">
+                       <span className={isConnected ? "font-semibold text-gray-800" : ""}>
+                         {isConnected ? config.name : `Connect ${config.name}`}
+                       </span>
+                       {discordNeedsSetup && (
+                         <div className="mt-2 space-y-2">
+                           <div className="text-xs text-yellow-600">
+                             {discordBotStatus.message}
+                           </div>
+                           <div className="text-xs text-yellow-700">
+                             Click "Add Bot to Server" below to invite the bot with the correct permissions.
+                           </div>
+                           <button
+                             onClick={(e) => {
+                               e.stopPropagation();
+                               window.open(generateDiscordInviteLink(), '_blank');
+                             }}
+                             className="text-xs bg-yellow-600 hover:bg-yellow-700 text-white px-2 py-1 rounded font-medium"
+                           >
+                             Add Bot to Server
+                           </button>
+                         </div>
+                       )}
+                     </div>
+                     {isConnected && !discordNeedsSetup && <div className="ml-auto w-2 h-2 bg-green-500 rounded-full"></div>}
+                     {discordNeedsSetup && <div className="ml-auto w-2 h-2 bg-yellow-500 rounded-full"></div>}
                   </div>
                 );
               })}
@@ -301,7 +406,10 @@ export default function Dashboard() {
                               </span>
                               {post.socialAccount.accountName && (
                                 <span className="text-sm text-gray-500 ml-2">
-                                  {post.socialAccount.accountName}
+                                  {post.socialAccount.platform === 'discord' && post.socialAccount.metadata?.guildName
+                                    ? `${post.socialAccount.metadata.guildName} - ${post.socialAccount.accountName}`
+                                    : post.socialAccount.accountName
+                                  }
                                 </span>
                               )}
                             </div>
@@ -315,6 +423,23 @@ export default function Dashboard() {
                             </span>
                           </div>
                           <p className="text-gray-700 text-sm mb-2">{post.content.substring(0, 150)}{post.content.length > 150 ? '...' : ''}</p>
+                          {post.mediaUrls && post.mediaUrls.length > 0 && (
+                            <div className="mb-2 flex flex-wrap gap-2">
+                              {post.mediaUrls.slice(0, 3).map((url, index) => (
+                                <img
+                                  key={index}
+                                  src={url}
+                                  alt={`Media ${index + 1}`}
+                                  className="w-16 h-16 object-cover rounded-lg border border-gray-200"
+                                />
+                              ))}
+                              {post.mediaUrls.length > 3 && (
+                                <div className="w-16 h-16 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
+                                  <span className="text-xs text-gray-500">+{post.mediaUrls.length - 3}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
                           <div className="text-xs text-gray-500">
                             {post.publishedAt && `Published ${new Date(post.publishedAt).toLocaleString()}`}
                             {post.scheduledFor && `Scheduled for ${new Date(post.scheduledFor).toLocaleString()}`}

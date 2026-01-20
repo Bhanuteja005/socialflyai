@@ -8,6 +8,7 @@ interface ConnectedAccount {
   platform: string;
   accountName?: string;
   avatarUrl?: string;
+  metadata?: any;
 }
 
 interface PostComposerProps {
@@ -154,7 +155,12 @@ export default function PostComposer({ connectedAccounts, onClose, onPostCreated
                         {account.platform}
                       </div>
                       {account.accountName && (
-                        <div className="text-xs text-gray-500">{account.accountName}</div>
+                        <div className="text-xs text-gray-500">
+                          {account.platform === 'discord' && account.metadata?.guildName
+                            ? `${account.metadata.guildName} - ${account.accountName}`
+                            : account.accountName
+                          }
+                        </div>
                       )}
                     </div>
                     {isSelected && (

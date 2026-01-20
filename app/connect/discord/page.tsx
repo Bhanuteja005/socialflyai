@@ -11,6 +11,51 @@ export default function ConnectDiscord() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [botStatus, setBotStatus] = useState<{canAccess: boolean, message: string} | null>(null);
+  const [checkingBot, setCheckingBot] = useState(false);
+
+  const checkBotAccess = async (channelIdToCheck: string) => {
+    if (!channelIdToCheck.trim()) {
+      setBotStatus(null);
+      return;
+    }
+
+    setCheckingBot(true);
+    try {
+      const response = await fetch(`/api/discord/test-token?channelId=${channelIdToCheck}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setBotStatus({ canAccess: true, message: 'Bot can access this channel ✓' });
+      } else {
+        setBotStatus({ canAccess: false, message: 'Bot cannot access this channel. Please add the bot to your server first.' });
+      }
+    } catch (error) {
+      setBotStatus({ canAccess: false, message: 'Cannot verify bot access. Please add the bot to your server first.' });
+    } finally {
+      setCheckingBot(false);
+    }
+  };
+
+  const generateInviteLink = () => {
+    const clientId = process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID || '1463080016488435786';
+    const permissions = 2048 + 65536 + 16384; // Send Messages + Read Message History + Embed Links
+    const scope = 'bot%20applications.commands';
+    
+    return `https://discord.com/api/oauth2/authorize?client_id=${clientId}&permissions=${permissions}&scope=${scope}`;
+  };
+
+  const handleChannelIdChange = (value: string) => {
+    setChannelId(value);
+    // Debounce the bot check
+    setTimeout(() => {
+      if (value.trim()) {
+        checkBotAccess(value.trim());
+      } else {
+        setBotStatus(null);
+      }
+    }, 500);
+  };
 
   const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,14 +124,61 @@ export default function ConnectDiscord() {
             <input
               type="text"
               value={channelId}
-              onChange={(e) => setChannelId(e.target.value)}
+              onChange={(e) => handleChannelIdChange(e.target.value)}
               placeholder="123456789012345678"
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-black"
             />
             <p className="mt-1 text-xs text-gray-500">
               Right-click on a channel → Copy Channel ID
             </p>
+            {checkingBot && (
+              <p className="mt-1 text-xs text-blue-600">
+                Checking bot access...
+              </p>
+            )}
+            {botStatus && (
+              <div className={`mt-2 p-3 rounded-lg border ${
+                botStatus.canAccess 
+                  ? 'bg-green-50 border-green-200 text-green-800' 
+                  : 'bg-yellow-50 border-yellow-200 text-yellow-800'
+              }`}>
+                <p className="text-sm font-medium">
+                  {botStatus.message}
+                </p>
+                {!botStatus.canAccess && (
+                  <div className="mt-3 space-y-3">
+                    <button
+                      type="button"
+                      onClick={() => window.open(generateInviteLink(), '_blank')}
+                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
+                    >
+                      Add Bot to Server
+                    </button>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => checkBotAccess(channelId)}
+                        disabled={checkingBot}
+                        className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {checkingBot ? 'Checking...' : 'Check Status'}
+                      </button>
+                      <p className="text-xs text-yellow-700">
+                        After adding the bot, click "Check Status" to verify access and enable connection.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {botStatus && !botStatus.canAccess && (
+              <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-800">
+                  <strong>Connection disabled:</strong> The bot cannot access this channel. Please add the bot to your server using the button above, then click "Check Status" to verify access and enable the Connect button.
+                </p>
+              </div>
+            )}
           </div>
 
           <div>
@@ -98,7 +190,7 @@ export default function ConnectDiscord() {
               value={channelName}
               onChange={(e) => setChannelName(e.target.value)}
               placeholder="general"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-black"
             />
           </div>
 
@@ -111,7 +203,7 @@ export default function ConnectDiscord() {
               value={guildName}
               onChange={(e) => setGuildName(e.target.value)}
               placeholder="My Discord Server"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-black"
             />
           </div>
 
@@ -131,7 +223,7 @@ export default function ConnectDiscord() {
             </button>
             <button
               type="submit"
-              disabled={loading || !channelId}
+              disabled={loading || !channelId || botStatus?.canAccess === false}
               className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Connecting...' : 'Connect'}

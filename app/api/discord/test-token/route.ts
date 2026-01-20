@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import axios from 'axios';
 
 export async function GET(request: NextRequest) {
   const token = process.env.DISCORD_BOT_TOKEN;
+  const channelId = request.nextUrl.searchParams.get('channelId');
   
   if (!token) {
     return NextResponse.json({
@@ -10,23 +12,46 @@ export async function GET(request: NextRequest) {
     }, { status: 500 });
   }
 
-  // Validate token format
-  const parts = token.split('.');
-  const validFormat = parts.length === 3;
-  
-  return NextResponse.json({
-    success: true,
-    token: {
-      present: true,
-      length: token.length,
-      preview: token.substring(0, 20) + '...' + token.substring(token.length - 10),
-      parts: parts.length,
-      validFormat,
-      part1Length: parts[0]?.length || 0,
-      part2Length: parts[1]?.length || 0,
-      part3Length: parts[2]?.length || 0,
-    },
-    apiBase: process.env.DISCORD_API_BASE || 'https://discord.com/api/v10',
-    note: 'Discord tokens should have 3 parts separated by dots. Format: XXXXX.YYYYY.ZZZZZ'
-  });
+  if (!channelId) {
+    return NextResponse.json({
+      success: false,
+      error: 'channelId parameter is required',
+    }, { status: 400 });
+  }
+
+  try {
+    // Test if bot can access the channel
+    const channelResponse = await axios.get(`https://discord.com/api/v10/channels/${channelId}`, {
+      headers: {
+        'Authorization': `Bot ${token}`,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Bot can access the channel',
+      channel: {
+        id: channelResponse.data.id,
+        name: channelResponse.data.name,
+        type: channelResponse.data.type,
+        guild_id: channelResponse.data.guild_id,
+      },
+    });
+  } catch (error: any) {
+    return NextResponse.json({
+      success: false,
+      error: 'Bot cannot access the channel',
+      details: {
+        status: error.response?.status,
+        message: error.response?.data?.message || error.message,
+      },
+      instructions: [
+        '1. Go to your Discord server',
+        '2. Right-click on the server name → Server Settings',
+        '3. Go to "Integrations" → "Bots and Apps"',
+        '4. Make sure your bot is added to the server',
+        '5. Check that the bot has "Send Messages" permission in the channel',
+      ],
+    }, { status: error.response?.status || 500 });
+  }
 }
