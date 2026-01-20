@@ -70,10 +70,25 @@ export default function Dashboard() {
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'queue' | 'drafts' | 'approvals' | 'sent'>('queue');
   const [discordBotStatus, setDiscordBotStatus] = useState<{needsSetup: boolean, message: string} | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPosts, setTotalPosts] = useState(0);
+  const getStatusForTab = (tab: string) => {
+    const statusMap = {
+      queue: 'scheduled',
+      drafts: 'draft',
+      sent: 'published',
+      approvals: 'scheduled',
+    };
+    return statusMap[tab as keyof typeof statusMap] || 'scheduled';
+  };
+
+  const handlePageChange = (page: number) => {
+    loadPosts(getStatusForTab(activeTab), page);
+  };
 
   useEffect(() => {
     loadAccounts();
-    loadPosts();
+    loadPosts(undefined, 1);
   }, []);
 
   const checkDiscordBotStatus = async () => {
@@ -167,9 +182,16 @@ export default function Dashboard() {
     return `https://discord.com/api/oauth2/authorize?client_id=${clientId}&permissions=${permissions}&scope=${scope}`;
   };
 
-  const loadPosts = async (status?: string) => {
+  const postsPerPage = 10;
+
+  const loadPosts = async (status?: string, page: number = 1) => {
     try {
-      const url = status ? `/api/posts?status=${status}` : '/api/posts';
+      const params = new URLSearchParams();
+      if (status) params.append('status', status);
+      params.append('page', page.toString());
+      params.append('limit', postsPerPage.toString());
+      
+      const url = `/api/posts?${params.toString()}`;
       const response = await fetch(url, {
         headers: {
           'x-user-id': 'default-user',
@@ -178,6 +200,8 @@ export default function Dashboard() {
       const data = await response.json();
       if (data.success) {
         setPosts(data.posts);
+        setTotalPosts(data.total || 0);
+        setCurrentPage(page);
       }
     } catch (error) {
       console.error('Error loading posts:', error);
@@ -191,7 +215,8 @@ export default function Dashboard() {
       sent: 'published',
       approvals: 'scheduled',
     };
-    loadPosts(statusMap[activeTab]);
+    setCurrentPage(1);
+    loadPosts(statusMap[activeTab], 1);
   }, [activeTab]);
 
   const handleConnectPlatform = (platform: string) => {
@@ -491,6 +516,73 @@ export default function Dashboard() {
                  </div>
               </div>
               )}
+              
+              {/* Pagination - only show if there are posts */}
+              {posts.length > 0 && totalPosts > postsPerPage && (
+                <div className="mt-6 flex items-center justify-between">
+                  <div className="text-sm text-black-700">
+                    Showing {((currentPage - 1) * postsPerPage) + 1} to {Math.min(currentPage * postsPerPage, totalPosts)} of {totalPosts} posts
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1 text-black-500 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
+                    <span className="text-sm text-gray-700">
+                      Page {currentPage} of {Math.ceil(totalPosts / postsPerPage)}
+                    </span>
+                    <button
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === Math.ceil(totalPosts / postsPerPage)}
+                      className="px-3 text-black-500 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+                /* Empty State */
+              <div className="flex flex-col items-center justify-center py-12">
+                 <div className="w-full max-w-2xl mb-8 opacity-50 relative">
+                    {/* Skeleton UI for empty state */}
+                    <div className="space-y-4">
+                       {[1, 2, 3].map(i => (
+                         <div key={i} className="flex bg-white border border-gray-200 rounded-lg p-4 h-24">
+                            <div className="w-12 h-12 bg-gray-100 rounded-full mr-4"></div>
+                            <div className="flex-1 space-y-2">
+                               <div className="h-4 bg-gray-100 rounded w-1/4"></div>
+                               <div className="h-3 bg-gray-100 rounded w-3/4"></div>
+                            </div>
+                         </div>
+                       ))}
+                    </div>
+                    {/* Connecting line */}
+                    <div className="absolute right-0 top-1/2 w-16 h-32 border-r-2 border-t-2 border-gray-200 rounded-tr-3xl transform -translate-y-1/2 translate-x-8 pointer-events-none hidden md:block"></div>
+                 </div>
+                 
+                 <div className="text-center max-w-md">
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">Welcome to SocialFly 👋</h3>
+                    <p className="text-gray-600 mb-8">
+                       As an admin of this team, you can grant yourself access to your team's social channels, or connect your own channels. For questions, please contact your team admin.
+                    </p>
+                    <div className="flex items-center justify-center space-x-3">
+                       <button 
+                         onClick={() => setShowPostComposer(true)}
+                         className="px-5 py-2.5 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition"
+                       >
+                         + Create Your First Post
+                       </button>
+                       <button 
+                         onClick={() => setShowConnectionModal(true)}
+                         className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 transition">
+                         Connect a Channel
+                       </button>
+                    </div>
+                 </div>
+              </div>
            </div>
         </main>
         
@@ -518,7 +610,7 @@ export default function Dashboard() {
           onClose={() => setShowPostComposer(false)}
           onPostCreated={() => {
             setShowPostComposer(false);
-            loadPosts();
+            loadPosts(getStatusForTab(activeTab), currentPage);
           }}
         />
       )}

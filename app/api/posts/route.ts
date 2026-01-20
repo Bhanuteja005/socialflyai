@@ -6,11 +6,16 @@ export async function GET(request: NextRequest) {
     const userId = request.headers.get('x-user-id') || 'default-user';
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
     
     const where: any = { userId };
     if (status) {
       where.status = status;
     }
+    
+    // Get total count for pagination
+    const total = await prisma.post.count({ where });
     
     const posts = await prisma.post.findMany({
       where,
@@ -29,9 +34,11 @@ export async function GET(request: NextRequest) {
         { scheduledFor: 'asc' },
         { createdAt: 'desc' },
       ],
+      skip: (page - 1) * limit,
+      take: limit,
     });
     
-    return NextResponse.json({ success: true, posts });
+    return NextResponse.json({ success: true, posts, total, page, limit });
   } catch (error: any) {
     console.error('Error fetching posts:', error);
     return NextResponse.json(
