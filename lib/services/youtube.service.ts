@@ -93,7 +93,8 @@ export class YouTubeService {
         media: {
           body: stream,
         },
-      });
+      }
+    );
 
       console.log('[YouTube Upload] Success! Video ID:', response.data.id);
       return response.data;

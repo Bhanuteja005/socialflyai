@@ -1,46 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
-import axios from 'axios';
+import { xService } from '@/lib/services/x.service';
+import { validateRequired, handleApiError, successResponse, errorResponse } from '@/lib/api-utils';
 
 export async function POST(request: NextRequest) {
   try {
     const { text, accessToken } = await request.json();
 
-    if (!text) {
-      return NextResponse.json(
-        { error: 'Missing text' },
-        { status: 400 }
-      );
+    console.log('[X Post Route] Received post request');
+    console.log('[X Post Route] Text:', text?.substring(0, 50) + '...');
+    console.log('[X Post Route] Has access token:', !!accessToken);
+
+    // Validate required fields
+    const validationErrors = validateRequired({ text, accessToken }, ['text', 'accessToken']);
+    if (validationErrors.length > 0) {
+      return errorResponse('Validation failed', 400, validationErrors);
     }
 
-    if (!accessToken) {
-      return NextResponse.json(
-        { error: 'No access token provided. Authenticate first.' },
-        { status: 400 }
-      );
+    if (text.length > 280) {
+      return errorResponse('Tweet text exceeds 280 characters', 400);
     }
 
-    const response = await axios.post(
-      'https://api.twitter.com/2/tweets',
-      { text },
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-        },
-      }
-    );
+    const result = await xService.postTweet(accessToken, text);
 
-    return NextResponse.json({
-      success: true,
-      message: 'Tweet posted successfully',
-      data: response.data,
-    });
+    return successResponse(result, 'Tweet posted successfully');
   } catch (error: any) {
-    return NextResponse.json(
-      {
-        error: 'Failed to post tweet',
-        details: error.response?.data || error.message,
-      },
-      { status: error.response?.status || 500 }
-    );
+    console.error('[X Post Route] Error:', error.message);
+    return handleApiError(error);
   }
 }
