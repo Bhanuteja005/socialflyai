@@ -94,11 +94,11 @@ async function publishPost(
 
 // Platform-specific publishing functions
 async function publishToLinkedIn(content: string, socialAccount: any, mediaUrls: string[]) {
-  const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+  const baseUrl = process.env.NEXTAUTH_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
 
   if (mediaUrls && mediaUrls.length > 0) {
     // Use the actual uploaded image URL
-    const imageUrl = `${baseUrl}${mediaUrls[0]}`;
+    const imageUrl = mediaUrls[0].startsWith('http') ? mediaUrls[0] : `${baseUrl}${mediaUrls[0]}`;
 
     console.log('Calling LinkedIn image-post with actual uploaded image:', { text: content, imageUrl });
 
@@ -106,12 +106,12 @@ async function publishToLinkedIn(content: string, socialAccount: any, mediaUrls:
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${socialAccount.accessToken}`,
+        'x-user-id': socialAccount.userId,
       },
       body: JSON.stringify({
         text: content,
         imageUrl: imageUrl,
-        visibility: 'PUBLIC',
+        organizationId: socialAccount.metadata?.organizationId
       }),
     });
 
@@ -139,17 +139,17 @@ async function publishToLinkedIn(content: string, socialAccount: any, mediaUrls:
 }
 
 async function publishToLinkedInTextOnly(content: string, socialAccount: any) {
-  const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+  const baseUrl = process.env.NEXTAUTH_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
 
   const response = await fetch(`${baseUrl}/api/linkedin/text-post`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${socialAccount.accessToken}`,
       'Content-Type': 'application/json',
+      'x-user-id': socialAccount.userId,
     },
     body: JSON.stringify({
-      text: content,
-      visibility: 'PUBLIC',
+      content,
+      organizationId: socialAccount.metadata?.organizationId
     }),
   });
 
