@@ -29,9 +29,15 @@ GET  /api/facebook/posts
 
 ### LinkedIn
 ```
+GET  /api/linkedin/auth-url
+GET  /api/linkedin/auth-url-org
+POST /api/linkedin/callback
 GET  /api/linkedin/profile
 POST /api/linkedin/text-post
 POST /api/linkedin/image-post
+POST /api/linkedin/media-post
+POST /api/linkedin/org-post
+POST /api/linkedin/org-media-post
 ```
 
 ### X (Twitter)

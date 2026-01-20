@@ -1,0 +1,86 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  socialAccounts SocialAccount[]
+  posts          Post[]
+}
+
+model SocialAccount {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  platform     String   // linkedin, facebook, discord, youtube, twitter, instagram
+  platformId   String?  // Platform-specific account ID
+  accountName  String?  // Display name for the account
+  avatarUrl    String?  // Profile picture URL
+  
+  accessToken  String?  @db.Text
+  refreshToken String?  @db.Text
+  tokenExpiry  DateTime?
+  
+  isActive     Boolean  @default(true)
+  metadata     Json?    // Additional platform-specific data
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  posts        Post[]
+  
+  @@unique([userId, platform, platformId])
+  @@index([userId])
+  @@index([platform])
+}
+
+model Post {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  socialAccountId String
+  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  
+  content         String   @db.Text
+  mediaUrls       String[] // Array of media URLs
+  scheduledFor    DateTime?
+  publishedAt     DateTime?
+  
+  status          String   @default("draft") // draft, scheduled, published, failed
+  platformPostId  String?  // ID from the platform after posting
+  errorMessage    String?  @db.Text
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([userId])
+  @@index([socialAccountId])
+  @@index([status])
+  @@index([scheduledFor])
+}
+
+model OAuthState {
+  id        String   @id @default(uuid())
+  state     String   @unique
+  platform  String
+  userId    String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  @@index([state])
+  @@index([expiresAt])
+}
