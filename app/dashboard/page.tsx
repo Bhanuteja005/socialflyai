@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FaLinkedin, FaFacebook, FaDiscord, FaYoutube, FaTwitter,
   FaInstagram, FaPinterest, FaTiktok, FaGoogle, FaRegListAlt, FaCalendarAlt
@@ -11,6 +11,7 @@ import {
 import { IoMdSettings, IoMdAdd } from 'react-icons/io';
 import { MdDashboard, MdOutlineViewStream, MdDrafts, MdCheckCircle, MdSend } from 'react-icons/md';
 import { BsGridFill, BsThreeDotsVertical } from 'react-icons/bs';
+import PostComposer from '../components/PostComposer';
 
 interface SocialAccount {
   id: string;
@@ -19,6 +20,18 @@ interface SocialAccount {
   avatarUrl?: string;
   isActive: boolean;
   createdAt: string;
+}
+
+interface Post {
+  id: string;
+  content: string;
+  status: string;
+  scheduledFor?: string;
+  publishedAt?: string;
+  socialAccount: {
+    platform: string;
+    accountName?: string;
+  };
 }
 
 // Helper to determine platform icon and color
@@ -47,20 +60,23 @@ const platformsList = [
 
 export default function Dashboard() {
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [showConnectionModal, setShowConnectionModal] = useState(false);
+  const [showPostComposer, setShowPostComposer] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'queue' | 'drafts' | 'approvals' | 'sent'>('queue');
 
   useEffect(() => {
     loadAccounts();
+    loadPosts();
   }, []);
 
   const loadAccounts = async () => {
     try {
       const response = await fetch('/api/social-accounts', {
         headers: {
-          'x-user-id': 'default-user', // TODO: Implement proper auth
+          'x-user-id': 'default-user',
         },
       });
       const data = await response.json();
@@ -73,6 +89,33 @@ export default function Dashboard() {
       setLoading(false);
     }
   };
+
+  const loadPosts = async (status?: string) => {
+    try {
+      const url = status ? `/api/posts?status=${status}` : '/api/posts';
+      const response = await fetch(url, {
+        headers: {
+          'x-user-id': 'default-user',
+        },
+      });
+      const data = await response.json();
+      if (data.success) {
+        setPosts(data.posts);
+      }
+    } catch (error) {
+      console.error('Error loading posts:', error);
+    }
+  };
+
+  useEffect(() => {
+    const statusMap = {
+      queue: 'scheduled',
+      drafts: 'draft',
+      sent: 'published',
+      approvals: 'scheduled',
+    };
+    loadPosts(statusMap[activeTab]);
+  }, [activeTab]);
 
   const handleConnectPlatform = (platform: string) => {
     setSelectedPlatform(platform);
@@ -99,7 +142,8 @@ export default function Dashboard() {
              </nav>
           </div>
           <div className="flex items-center space-x-4">
-             <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium flex items-center">
+             <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium flex items-center"
+               onClick={() => setShowPostComposer(true)}>
                <IoMdAdd className="mr-1 text-lg" /> New
              </button>
              <div className="h-8 w-8 rounded-full bg-gray-200 cursor-pointer flex items-center justify-center text-gray-600 hover:bg-gray-300">
@@ -201,10 +245,10 @@ export default function Dashboard() {
               {/* Tabs */}
               <div className="flex space-x-8 border-b border-gray-200 mb-8">
                  {[
-                   { id: 'queue', label: 'Queue', count: 0 },
-                   { id: 'drafts', label: 'Drafts', count: 0 },
+                   { id: 'queue', label: 'Queue', count: posts.filter(p => p.status === 'scheduled').length },
+                   { id: 'drafts', label: 'Drafts', count: posts.filter(p => p.status === 'draft').length },
                    { id: 'approvals', label: 'Approvals', count: 0, showBolt: true },
-                   { id: 'sent', label: 'Sent', count: 0 }
+                   { id: 'sent', label: 'Sent', count: posts.filter(p => p.status === 'published').length }
                  ].map(tab => (
                    <button
                      key={tab.id}
@@ -234,7 +278,55 @@ export default function Dashboard() {
                  </div>
               </div>
               
-              {/* Empty State Content */}
+              {/* Post List */}
+              {posts.length > 0 ? (
+                <div className="space-y-4">
+                  {posts.map(post => (
+                    <div key={post.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition">
+                      <div className="flex items-start space-x-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          post.status === 'published' ? 'bg-green-100 text-green-600' :
+                          post.status === 'scheduled' ? 'bg-blue-100 text-blue-600' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>
+                          {getPlatformConfig(post.socialAccount.platform).icon &&
+                            <span className="text-lg">{React.createElement(getPlatformConfig(post.socialAccount.platform).icon)}</span>
+                          }
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-2">
+                            <div>
+                              <span className="font-medium text-gray-900 capitalize">
+                                {post.socialAccount.platform}
+                              </span>
+                              {post.socialAccount.accountName && (
+                                <span className="text-sm text-gray-500 ml-2">
+                                  {post.socialAccount.accountName}
+                                </span>
+                              )}
+                            </div>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              post.status === 'published' ? 'bg-green-100 text-green-700' :
+                              post.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
+                              post.status === 'failed' ? 'bg-red-100 text-red-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {post.status}
+                            </span>
+                          </div>
+                          <p className="text-gray-700 text-sm mb-2">{post.content.substring(0, 150)}{post.content.length > 150 ? '...' : ''}</p>
+                          <div className="text-xs text-gray-500">
+                            {post.publishedAt && `Published ${new Date(post.publishedAt).toLocaleString()}`}
+                            {post.scheduledFor && `Scheduled for ${new Date(post.scheduledFor).toLocaleString()}`}
+                            {!post.publishedAt && !post.scheduledFor && 'Draft'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                /* Empty State */
               <div className="flex flex-col items-center justify-center py-12">
                  <div className="w-full max-w-2xl mb-8 opacity-50 relative">
                     {/* Skeleton UI for empty state */}
@@ -260,71 +352,26 @@ export default function Dashboard() {
                     </p>
                     <div className="flex items-center justify-center space-x-3">
                        <button 
-                         onClick={() => setShowConnectionModal(true)}
+                         onClick={() => setShowPostComposer(true)}
                          className="px-5 py-2.5 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition"
                        >
-                         + Connect a Channel
+                         + Create Your First Post
                        </button>
-                       <button className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 transition">
-                         Manage Channel Access
+                       <button 
+                         onClick={() => setShowConnectionModal(true)}
+                         className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 transition">
+                         Connect a Channel
                        </button>
                     </div>
                  </div>
               </div>
+              )}
            </div>
         </main>
         
-        {/* Setup Checklist (Bottom Right) */}
-        {!loading && accounts.length < 3 && (
-          <div className="fixed bottom-6 right-6 w-80 bg-white shadow-xl rounded-lg border border-gray-200 overflow-hidden z-20">
-             <div className="p-4 bg-blue-50 border-b border-blue-100 flex justify-between items-center">
-                <h4 className="font-semibold text-gray-900">Complete your setup</h4>
-                <button className="text-gray-400 hover:text-gray-600">×</button>
-             </div>
-             <div className="p-4">
-                <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
-                   <span>1 of 4</span>
-                   <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                      <div className="w-1/4 h-full bg-blue-600"></div>
-                   </div>
-                </div>
-                
-                <div className="space-y-3">
-                   <div className="flex items-start">
-                      <MdCheckCircle className="text-blue-600 mt-0.5 mr-2 text-lg" />
-                      <span className="text-sm text-gray-600 line-through">Create your SocialFly account</span>
-                   </div>
-                   <div className="flex items-start">
-                      <div className={`w-4 h-4 rounded-full border-2 mr-2.5 mt-0.5 flex-shrink-0 ${accounts.length > 0 ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
-                         {accounts.length > 0 && <MdCheckCircle className="text-white text-xs" />}
-                      </div>
-                      <span className={`text-sm ${accounts.length > 0 ? 'text-gray-600 line-through' : 'text-gray-800 font-medium'}`}>
-                        Connect your first channel
-                      </span>
-                   </div>
-                   <div className="flex items-start">
-                      <div className="w-4 h-4 rounded-full border-2 border-gray-300 mr-2.5 mt-0.5 flex-shrink-0"></div>
-                      <span className="text-sm text-gray-500">Save an idea</span>
-                   </div>
-                   <div className="flex items-start">
-                      <div className="w-4 h-4 rounded-full border-2 border-gray-300 mr-2.5 mt-0.5 flex-shrink-0"></div>
-                      <span className="text-sm text-gray-500">Publish your first post</span>
-                   </div>
-                </div>
-                
-                <div className="mt-4 pt-3 border-t border-gray-100 text-xs text-gray-400">
-                   Need some help? <a href="#" className="underline hover:text-gray-600">Read our guide</a>
-                </div>
-             </div>
-          </div>
-        )}
         
-        {/* Help Bubble */}
-        <div className="fixed bottom-6 right-6 z-10" style={{ right: accounts.length < 3 ? '340px' : '24px' }}>
-           <button className="w-10 h-10 bg-blue-600 rounded-full text-white flex items-center justify-center font-bold text-xl shadow-lg hover:bg-blue-700 transition">
-              ?
-           </button>
-        </div>
+        
+       
       </div>
 
       {/* Connection Modal */}
@@ -335,6 +382,18 @@ export default function Dashboard() {
             setShowConnectionModal(false);
             setSelectedPlatform(null);
             loadAccounts();
+          }}
+        />
+      )}
+
+      {/* Post Composer */}
+      {showPostComposer && (
+        <PostComposer
+          connectedAccounts={accounts.filter(a => a.isActive)}
+          onClose={() => setShowPostComposer(false)}
+          onPostCreated={() => {
+            setShowPostComposer(false);
+            loadPosts();
           }}
         />
       )}

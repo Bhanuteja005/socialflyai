@@ -13,11 +13,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { text, imageUrl, visibility = 'PUBLIC', organizationId } = await request.json();
+    const { imageUrl, visibility = 'PUBLIC', organizationId } = await request.json();
 
-    if (!text || !imageUrl) {
+    if (!imageUrl) {
       return NextResponse.json(
-        { error: 'Text and imageUrl are required' },
+        { error: 'Image URL is required' },
         { status: 400 }
       );
     }
@@ -77,51 +77,16 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Now create the post with the uploaded image
-    const postData = {
-      author,
-      lifecycleState: 'PUBLISHED',
-      specificContent: {
-        'com.linkedin.ugc.ShareContent': {
-          shareCommentary: {
-            text,
-          },
-          shareMediaCategory: 'IMAGE',
-          media: [
-            {
-              status: 'READY',
-              media: asset,
-            },
-          ],
-        },
-      },
-      visibility: {
-        'com.linkedin.ugc.MemberNetworkVisibility': visibility,
-      },
-    };
-
-    const response = await axios.post(
-      'https://api.linkedin.com/v2/ugcPosts',
-      postData,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'X-Restli-Protocol-Version': '2.0.0',
-        },
-      }
-    );
-
     return NextResponse.json({
       success: true,
-      message: 'LinkedIn image post created successfully',
-      data: response.data,
+      message: 'Image uploaded to LinkedIn successfully',
+      asset: asset,
     });
   } catch (error: any) {
-    console.error('Image post error:', error.response?.data || error.message);
+    console.error('Image upload error:', error.response?.data || error.message);
     return NextResponse.json(
       {
-        error: 'Failed to create LinkedIn image post',
+        error: 'Failed to upload image to LinkedIn',
         details: error.response?.data || error.message,
       },
       { status: error.response?.status || 500 }

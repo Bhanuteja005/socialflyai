@@ -3,6 +3,16 @@ import axios from 'axios';
 
 export async function POST(request: NextRequest) {
   try {
+    const authHeader = request.headers.get('authorization');
+    const accessToken = authHeader?.replace('Bearer ', '') || process.env.LINKEDIN_ACCESS_TOKEN;
+
+    if (!accessToken) {
+      return NextResponse.json(
+        { error: 'Access token is required' },
+        { status: 401 }
+      );
+    }
+
     const {
       text,
       imageUrl,
@@ -25,7 +35,7 @@ export async function POST(request: NextRequest) {
       'https://api.linkedin.com/v2/userinfo',
       {
         headers: {
-          'Authorization': `Bearer ${process.env.LINKEDIN_ACCESS_TOKEN}`,
+          'Authorization': `Bearer ${accessToken}`,
         },
       }
     );
@@ -94,7 +104,7 @@ export async function POST(request: NextRequest) {
       postData,
       {
         headers: {
-          'Authorization': `Bearer ${process.env.LINKEDIN_ACCESS_TOKEN}`,
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
           'X-Restli-Protocol-Version': '2.0.0',
         },

@@ -55,12 +55,13 @@ export async function POST(request: NextRequest) {
       update: {
         accountName: channelName || channelData.name,
         metadata: {
+          channelId,
           guildName,
           guildId: channelData.guild_id,
           channelType: channelData.type,
         },
         isActive: true,
-        accessToken: botToken, // Store bot token (in production, use encryption)
+        accessToken: botToken,
       },
       create: {
         userId,
@@ -68,6 +69,7 @@ export async function POST(request: NextRequest) {
         platformId: channelId,
         accountName: channelName || channelData.name,
         metadata: {
+          channelId,
           guildName,
           guildId: channelData.guild_id,
           channelType: channelData.type,

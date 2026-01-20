@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
 
 export async function GET(request: NextRequest) {
   try {
@@ -63,13 +64,73 @@ export async function GET(request: NextRequest) {
 
     const { access_token, refresh_token, expires_in } = tokenData;
 
-    // TODO: Store tokens securely (database, session, etc.)
-    // For now, we'll just log them and redirect
-    console.log('LinkedIn tokens obtained:', {
-      access_token: access_token.substring(0, 20) + '...',
-      refresh_token: refresh_token ? refresh_token.substring(0, 20) + '...' : 'none',
-      expires_in,
+    // Fetch LinkedIn profile to get person URN
+    const profileResponse = await fetch('https://api.linkedin.com/v2/userinfo', {
+      headers: {
+        'Authorization': `Bearer ${access_token}`,
+      },
     });
+
+    if (!profileResponse.ok) {
+      console.error('Failed to fetch LinkedIn profile');
+      return NextResponse.redirect(
+        new URL('/dashboard?error=linkedin_profile_fetch_failed', request.url)
+      );
+    }
+
+    const profile = await profileResponse.json();
+    const personUrn = `urn:li:person:${profile.sub}`;
+
+    // Store in database
+    const userId = 'default-user'; // TODO: Get from session
+    await prisma.user.upsert({
+      where: { id: userId },
+      update: {},
+      create: {
+        id: userId,
+        email: profile.email || `${userId}@example.com`,
+        name: profile.name || 'LinkedIn User',
+      },
+    });
+
+    await prisma.socialAccount.upsert({
+      where: {
+        userId_platform_platformId: {
+          userId,
+          platform: 'linkedin',
+          platformId: profile.sub,
+        },
+      },
+      update: {
+        accessToken: access_token,
+        refreshToken: refresh_token || null,
+        tokenExpiry: new Date(Date.now() + expires_in * 1000),
+        accountName: profile.name,
+        avatarUrl: profile.picture,
+        metadata: {
+          personUrn,
+          email: profile.email,
+        },
+        isActive: true,
+      },
+      create: {
+        userId,
+        platform: 'linkedin',
+        platformId: profile.sub,
+        accessToken: access_token,
+        refreshToken: refresh_token || null,
+        tokenExpiry: new Date(Date.now() + expires_in * 1000),
+        accountName: profile.name,
+        avatarUrl: profile.picture,
+        metadata: {
+          personUrn,
+          email: profile.email,
+        },
+        isActive: true,
+      },
+    });
+
+    console.log('LinkedIn account connected successfully for user:', userId);
 
     // Redirect back to dashboard with success
     return NextResponse.redirect(
