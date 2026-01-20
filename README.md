@@ -177,6 +177,66 @@ node tests/test-all-apis.js
 - Verify redirect URI matches exactly
 - Check client ID and secret
 
+## ⏰ Scheduled Posts
+
+SocialFly AI supports scheduling posts to be published automatically at specified times.
+
+### How It Works
+- Posts can be scheduled through the dashboard composer
+- The scheduler runs every 5 minutes to check for due posts
+- Due posts are automatically published to their respective platforms
+
+### Setting Up the Scheduler
+
+#### For Development
+The scheduler runs automatically when you start the development server:
+```bash
+npm run dev
+```
+
+#### For Production (Vercel)
+Since Vercel doesn't support persistent cron jobs on free plans, you have several options:
+
+**Option 1: External Cron Service**
+Use a service like [Cron-Job.org](https://cron-job.org), [EasyCron](https://www.easycron.com), or GitHub Actions:
+
+```bash
+# Example cron job that runs every 5 minutes
+*/5 * * * * curl -X POST https://your-app-url.vercel.app/api/scheduler/process
+```
+
+**Option 2: Manual Trigger**
+Run the scheduler manually when needed:
+```bash
+npm run scheduler:remote
+```
+
+**Option 3: GitHub Actions (Recommended)**
+Create a `.github/workflows/scheduler.yml`:
+
+```yaml
+name: Run Scheduler
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # Every 5 minutes
+jobs:
+  scheduler:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger scheduler
+        run: curl -X POST https://your-app-url.vercel.app/api/scheduler/process
+```
+
+### Testing the Scheduler
+You can manually trigger the scheduler to test it:
+```bash
+# Local development
+npm run scheduler
+
+# Remote/production
+npm run scheduler:remote
+```
+
 ## 📝 Notes
 
 - OAuth flows require browser interaction

@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "scheduler": "curl -X POST http://localhost:3000/api/scheduler/process",
+    "scheduler:remote": "curl -X POST https://socialflyai-mkkv.vercel.app/api/scheduler/process",
     "lint": "eslint"
   },
   "dependencies": {
