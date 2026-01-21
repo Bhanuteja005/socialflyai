@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { FaLinkedin, FaFacebook, FaDiscord, FaTwitter } from 'react-icons/fa';
+import { FaLinkedin, FaFacebook, FaDiscord, FaTwitter, FaYoutube } from 'react-icons/fa';
 
 interface ConnectedAccount {
   id: string;
@@ -32,6 +32,7 @@ export default function PostComposer({ connectedAccounts, onClose, onPostCreated
       case 'facebook': return FaFacebook;
       case 'discord': return FaDiscord;
       case 'twitter': return FaTwitter;
+      case 'youtube': return FaYoutube;
       default: return FaLinkedin;
     }
   };

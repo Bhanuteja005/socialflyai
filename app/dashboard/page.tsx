@@ -643,6 +643,8 @@ function ConnectionModal({ platform, onClose }: { platform: string | null; onClo
         response = await fetch('/api/linkedin/auth-url');
       } else if (platform === 'twitter') {
         response = await fetch('/api/x/auth-url');
+      } else if (platform === 'youtube') {
+        response = await fetch('/api/youtube/auth-url');
       } else if (platform === 'discord') {
          // Discord redirects directly
          window.location.href = '/connect/discord';
@@ -654,8 +656,8 @@ function ConnectionModal({ platform, onClose }: { platform: string | null; onClo
       }
       
       const data = await response.json();
-      if ((data.success && data.authUrl) || data.authUrl) {
-        setAuthUrl(data.authUrl);
+      if ((data.success && data.authUrl) || data.authUrl || data.url) {
+        setAuthUrl(data.authUrl || data.url);
       } else {
         setError(data.error || `Failed to get ${platform} auth URL`);
       }

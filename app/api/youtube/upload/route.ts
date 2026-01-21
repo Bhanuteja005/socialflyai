@@ -1,39 +1,77 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { youTubeService } from '@/lib/services/youtube.service';
-import { handleApiError, successResponse, errorResponse } from '@/lib/api-utils';
+import prisma from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
   try {
+    const userId = request.headers.get('x-user-id') || 'default-user';
     const formData = await request.formData();
+    
     const file = formData.get('video') as File;
-    const title = (formData.get('title') as string) || 'Test Video';
+    const title = (formData.get('title') as string) || 'Video Upload';
     const description = (formData.get('description') as string) || 'Uploaded via SocialFly AI';
-    const accessToken = formData.get('accessToken') as string;
+    const socialAccountId = formData.get('socialAccountId') as string;
     const privacyStatus = (formData.get('privacyStatus') as 'public' | 'private' | 'unlisted') || 'public';
 
-    console.log('[Upload Route] Received upload request');
-    console.log('[Upload Route] File name:', file?.name);
-    console.log('[Upload Route] Access token received:', accessToken ? 'Yes' : 'No');
-    console.log('[Upload Route] Access token length:', accessToken?.length);
+    console.log('[YouTube Upload] Request received');
+    console.log('[YouTube Upload] File:', file?.name);
+    console.log('[YouTube Upload] Social Account ID:', socialAccountId);
 
     if (!file) {
-      return errorResponse('No video file provided', 400);
+      return NextResponse.json(
+        { success: false, error: 'No video file provided' },
+        { status: 400 }
+      );
     }
 
-    if (!accessToken) {
-      return errorResponse('No access token provided', 401);
+    if (!socialAccountId) {
+      return NextResponse.json(
+        { success: false, error: 'Social account ID required' },
+        { status: 400 }
+      );
     }
 
-    const result = await youTubeService.uploadVideo({
+    // Get the social account to verify ownership
+    const socialAccount = await prisma.socialAccount.findUnique({
+      where: { id: socialAccountId },
+    });
+
+    if (!socialAccount || socialAccount.userId !== userId) {
+      return NextResponse.json(
+        { success: false, error: 'YouTube account not found or unauthorized' },
+        { status: 404 }
+      );
+    }
+
+    if (socialAccount.platform !== 'youtube') {
+      return NextResponse.json(
+        { success: false, error: 'Invalid platform - expected YouTube account' },
+        { status: 400 }
+      );
+    }
+
+    // Upload video using the service (which handles token refresh)
+    const result = await youTubeService.uploadVideoFromAccount(
+      socialAccountId,
       file,
       title,
       description,
-      accessToken,
-      privacyStatus,
-    });
+      privacyStatus
+    );
 
-    return successResponse(result, 'Video uploaded to YouTube successfully');
+    console.log('[YouTube Upload] Success! Video ID:', result.id);
+
+    return NextResponse.json({
+      success: true,
+      videoId: result.id,
+      videoUrl: `https://www.youtube.com/watch?v=${result.id}`,
+      data: result,
+    });
   } catch (error: any) {
-    return handleApiError(error);
+    console.error('[YouTube Upload] Error:', error);
+    return NextResponse.json(
+      { success: false, error: error.message || 'Failed to upload video' },
+      { status: 500 }
+    );
   }
 }

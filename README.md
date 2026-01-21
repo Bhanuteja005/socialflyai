@@ -17,6 +17,7 @@ A Next.js-based unified application for managing and posting to multiple social 
 - **Discord** - Send messages and media to Discord channels
 - **Facebook** - Post updates, upload media, and manage page content
 - **LinkedIn** - Create text and image posts, manage professional profile
+- **YouTube** - Upload videos with metadata, automatic OAuth token refresh
 - **X (Twitter)** - Post tweets with OAuth 2.0 authentication
 - **YouTube** - Upload videos with full OAuth flow
 
@@ -236,6 +237,35 @@ npm run scheduler
 # Remote/production
 npm run scheduler:remote
 ```
+
+## 🧪 Testing
+
+### YouTube Integration Test
+Run the comprehensive YouTube integration test:
+```bash
+node test-youtube.js
+```
+
+Expected output:
+```
+✓ HEALTH
+✓ DATABASE
+✓ CONFIG
+✓ AUTHURL
+
+Passed: 4/4
+✓ All tests passed! YouTube integration is ready.
+```
+
+### Database Connection Test
+Verify your database is configured correctly:
+```bash
+node test-db-connection.js
+```
+
+### Testing Guides
+- **YouTube Testing**: See [YOUTUBE_TEST_GUIDE.md](./YOUTUBE_TEST_GUIDE.md) for step-by-step YouTube integration testing
+- **Database Setup**: See [DATABASE_SETUP.md](./DATABASE_SETUP.md) for database configuration options
 
 ## 📝 Notes
 

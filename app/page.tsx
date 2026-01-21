@@ -11,7 +11,7 @@ export default function Home() {
             <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold">SF</span>
             </div>
-            <h1 className="text-lg font-semibold text-gray-900">SocialFly</h1>
+            <h1 className="text-lg font-semibold text-gray-900">Socialflyai</h1>
           </div>
           <nav className="space-x-3">
             <Link href="/dashboard" className="px-3 py-2 bg-blue-600 text-white rounded-md text-sm">Open Dashboard</Link>

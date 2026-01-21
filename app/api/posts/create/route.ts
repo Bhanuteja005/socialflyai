@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { youTubeService } from '@/lib/services/youtube.service';
 
 export async function POST(request: NextRequest) {
   try {
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
         socialAccountId,
         content,
         scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
-        status: scheduledFor ? 'scheduled' : 'draft',
+        status: scheduledFor ? 'scheduled' : 'publishing',
         mediaUrls,
       },
       include: {
@@ -95,14 +96,26 @@ export async function POST(request: NextRequest) {
     // If not scheduled, publish immediately
     if (!scheduledFor) {
       console.log('Publishing post immediately to platform:', socialAccount.platform);
-      await publishPost(post.id, socialAccount.platform, content, socialAccount, mediaUrls);
+      try {
+        await publishPost(post.id, socialAccount.platform, content, socialAccount, mediaUrls);
+        console.log('Post published successfully');
+      } catch (error: any) {
+        console.error('Failed to publish post:', error);
+        // Error is already handled in publishPost, just log it here
+      }
     } else {
       console.log('Post scheduled for:', scheduledFor);
     }
 
+    // Fetch updated post to return current status
+    const updatedPost = await prisma.post.findUnique({
+      where: { id: post.id },
+      include: { socialAccount: true },
+    });
+
     return NextResponse.json({
       success: true,
-      post,
+      post: updatedPost || post,
     });
   } catch (error: any) {
     console.error('Error creating post:', error);
@@ -137,6 +150,9 @@ async function publishPost(
         break;
       case 'facebook':
         platformPostId = await publishToFacebook(content, socialAccount, mediaUrls);
+        break;
+      case 'youtube':
+        platformPostId = await publishToYouTube(content, socialAccount, mediaUrls);
         break;
       default:
         throw new Error(`Platform ${platform} not supported yet`);
@@ -379,4 +395,64 @@ async function publishToFacebook(content: string, account: any, mediaUrls: strin
 
   const data = await response.json();
   return data.id;
+}
+
+async function publishToYouTube(content: string, account: any, mediaUrls: string[] = []) {
+  try {
+    console.log('[YouTube Publish] Starting upload with content:', content.substring(0, 100));
+
+    if (!mediaUrls || mediaUrls.length === 0) {
+      throw new Error('YouTube requires a video file to upload');
+    }
+
+    // For YouTube, content becomes the title, and we need a description
+    // Split content by first line break - first line is title, rest is description
+    const lines = content.split('\n');
+    const title = lines[0] || 'Untitled Video';
+    const description = lines.slice(1).join('\n') || 'Uploaded via SocialFly AI';
+
+    console.log('[YouTube Publish] Title:', title);
+    console.log('[YouTube Publish] Description:', description.substring(0, 100));
+
+    // Get the video file from the media URL
+    const videoUrl = mediaUrls[0];
+    const fs = require('fs');
+    const path = require('path');
+
+    // Convert relative URL to absolute file path
+    const publicDir = path.join(process.cwd(), 'public');
+    const filePath = path.join(publicDir, videoUrl);
+
+    console.log('[YouTube Publish] Reading video file from:', filePath);
+
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`Video file not found: ${filePath}`);
+    }
+
+    const fileBuffer = fs.readFileSync(filePath);
+    const fileName = path.basename(videoUrl);
+
+    console.log('[YouTube Publish] Video file size:', fileBuffer.length, 'bytes');
+    console.log('[YouTube Publish] Uploading to YouTube account:', account.id);
+
+    // Upload to YouTube using the service
+    const result = await youTubeService.uploadVideoFromAccount(
+      account.id,
+      fileBuffer,
+      title,
+      description,
+      'public', // Publish as public by default
+      fileName
+    );
+
+    console.log('[YouTube Publish] ✅ Upload successful!');
+    console.log('[YouTube Publish] Video ID:', result.id);
+    console.log('[YouTube Publish] Video URL: https://www.youtube.com/watch?v=' + result.id);
+    
+    return result.id;
+
+  } catch (error: any) {
+    console.error('[YouTube Publish] ❌ Error:', error.message);
+    throw new Error(`YouTube upload failed: ${error.message}`);
+  }
 }

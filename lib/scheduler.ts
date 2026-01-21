@@ -5,17 +5,28 @@ export async function processScheduledPosts() {
     const now = new Date();
 
     // Find all scheduled posts that are due
-    const duePosts = await prisma.post.findMany({
-      where: {
-        status: 'scheduled',
-        scheduledFor: {
-          lte: now
+    let duePosts;
+    try {
+      duePosts = await prisma.post.findMany({
+        where: {
+          status: 'scheduled',
+          scheduledFor: {
+            lte: now
+          }
+        },
+        include: {
+          socialAccount: true
         }
-      },
-      include: {
-        socialAccount: true
+      });
+    } catch (dbError: any) {
+      console.error('Database connection error in scheduler:', dbError.message);
+      // If it's a connection error, don't fail completely - just log and return
+      if (dbError.code === 'P1001' || dbError.message?.includes('Can\'t reach database server')) {
+        console.log('Database temporarily unavailable, skipping scheduler run');
+        return;
       }
-    });
+      throw dbError;
+    }
 
     console.log(`Found ${duePosts.length} scheduled posts due for publishing`);
 
@@ -84,6 +95,9 @@ async function publishPost(
       break;
     case 'facebook':
       platformPostId = await publishToFacebook(content, socialAccount, mediaUrls);
+      break;
+    case 'youtube':
+      platformPostId = await publishToYouTube(content, socialAccount, mediaUrls);
       break;
     default:
       throw new Error(`Platform ${platform} not supported yet`);
@@ -237,4 +251,58 @@ async function publishToFacebook(content: string, socialAccount: any, mediaUrls:
   }
 
   return data.postId;
+}
+
+async function publishToYouTube(content: string, socialAccount: any, mediaUrls: string[]) {
+  // YouTube requires video files, not just URLs
+  // For scheduled posts with videos, the video file should be accessible
+  if (!mediaUrls || mediaUrls.length === 0) {
+    throw new Error('YouTube posts require a video file');
+  }
+
+  const baseUrl = process.env.NEXTAUTH_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
+
+  // Get the video file path (mediaUrls contains paths like /uploads/filename.mp4)
+  const videoUrl = mediaUrls[0];
+  if (!videoUrl.startsWith('/uploads/')) {
+    throw new Error('Invalid video file path for YouTube upload');
+  }
+
+  // Read the video file from the filesystem
+  const fs = require('fs');
+  const path = require('path');
+  const filePath = path.join(process.cwd(), 'public', videoUrl);
+
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Video file not found: ${filePath}`);
+  }
+
+  // Read the file as buffer
+  const fileBuffer = fs.readFileSync(filePath);
+  const fileName = path.basename(filePath);
+
+  // Create FormData for upload
+  const formData = new FormData();
+  // Convert buffer to blob/file-like object
+  const file = new File([fileBuffer], fileName, { type: 'video/mp4' });
+  formData.append('video', file);
+  formData.append('title', content.substring(0, 100)); // YouTube title limit
+  formData.append('description', content);
+  formData.append('socialAccountId', socialAccount.id);
+  formData.append('privacyStatus', 'public');
+
+  const response = await fetch(`${baseUrl}/api/youtube/upload`, {
+    method: 'POST',
+    headers: {
+      'x-user-id': socialAccount.userId,
+    },
+    body: formData
+  });
+
+  const data = await response.json();
+  if (!data.success) {
+    throw new Error(data.error || 'Failed to upload video to YouTube');
+  }
+
+  return data.videoId;
 }
